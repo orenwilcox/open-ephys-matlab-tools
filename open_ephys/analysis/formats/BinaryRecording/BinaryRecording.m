@@ -36,7 +36,6 @@ classdef BinaryRecording < Recording
             self.format = 'Binary';
 
             self.info = jsondecode(fileread(fullfile(self.directory,'structure.oebin')));
-
             self = self.loadContinuous();
             self = self.loadEvents();
             self = self.loadSpikes();
@@ -60,7 +59,11 @@ classdef BinaryRecording < Recording
                 
                 stream.metadata.names = {};
                 for j = 1:length(self.info.continuous(i).channels)
-                    stream.metadata.names{j} = self.info.continuous(i).channels(j).channel_name;
+                    if iscell(self.info.continuous(i).channels)
+                        stream.metadata.names{j} = self.info.continuous(i).channels{j}.channel_name;
+                    elseif isstruct(self.info.continuous(i).channels)
+                        stream.metadata.names{j} = self.info.continuous(i).channels(j).channel_name;
+                    end
                 end
 
                 %Utils.log("Searching for start timestamp for stream: ");
@@ -71,11 +74,15 @@ classdef BinaryRecording < Recording
                 stream.timestamps = readNPY(fullfile(directory, 'timestamps.npy'));
 
                 stream.sampleNumbers = readNPY(fullfile(directory, 'sample_numbers.npy'));
+                
+                if contains(char(stream.metadata.streamName),'Probe')
+                    data = [];
+                else
+                    data = memmapfile(fullfile(directory, 'continuous.dat'), 'Format', 'int16');
 
-                data = memmapfile(fullfile(directory, 'continuous.dat'), 'Format', 'int16');
-
-                stream.samples = reshape(data.Data, [stream.metadata.numChannels, length(data.Data) / stream.metadata.numChannels]);
-
+                    stream.samples = reshape(data.Data, [stream.metadata.numChannels, length(data.Data) / stream.metadata.numChannels]);
+                end
+          
                 stream.metadata.startTimestamp = stream.timestamps(1);
 
                 self.continuous(stream.metadata.id) = stream;
